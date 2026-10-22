@@ -32,9 +32,15 @@ The `rbw-env` script:
    `export KEY=value` line per entry of the note.
 
 The note content is a list of `KEY=value` lines. An optional leading `export`
-on each line is tolerated, empty lines are ignored, and lines without a valid
-shell variable name are skipped with a warning on stderr. Values are printed
-with `printf %q`, so spaces, quotes and `$` are safe.
+on each line is tolerated, whitespace around keys and values is trimmed, empty
+lines and lines starting with `#` are ignored, and lines without a valid shell
+variable name are skipped with a warning on stderr.
+
+One matching pair of surrounding quotes is removed from each value, so both
+`KEY=value` and `KEY="value"` work. Inline comments after unquoted values are
+stripped (`KEY=value # comment`); quoted values keep `#` characters
+(`KEY="value # hash"`). Values are printed with `printf %q`, so spaces, quotes
+and `$` are safe.
 
 The script is deliberately forgiving: if `rbw` is unavailable, the item is not
 found, or rbw is locked, it prints a warning on stderr and exits successfully

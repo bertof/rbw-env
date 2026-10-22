@@ -40,6 +40,37 @@ run_script() {
 	[ "$BAR" = "$bar_orig" ]
 }
 
+@test "strips surrounding quotes from values" {
+	printf '%s\n' 'A="https://aigw.cern.ch"' "B='hello world'" >"$TESTDIR/item"
+	eval "$(run_script --name test-item)"
+	[ "$A" = "https://aigw.cern.ch" ]
+	[ "$B" = "hello world" ]
+}
+
+@test "skips comments and strips inline comments" {
+	printf '%s\n' '# full-line comment' '  # indented comment' 'A=value # inline' 'B="keep # hash"' 'C=#literal' >"$TESTDIR/item"
+	eval "$(run_script --name test-item)"
+	[ "$A" = "value" ]
+	[ "$B" = "keep # hash" ]
+	[ "$C" = "#literal" ]
+	[ -z "${full_line_comment+x}" ]
+}
+
+@test "trims whitespace around keys and values" {
+	printf '%s\n' '  export  A = "x"  ' 'B = y' >"$TESTDIR/item"
+	eval "$(run_script --name test-item)"
+	[ "$A" = "x" ]
+	[ "$B" = "y" ]
+}
+
+@test "skips unmatched quoted values" {
+	printf 'A="unterminated\n' >"$TESTDIR/item"
+	run --separate-stderr run_script --name test-item
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+	[[ $stderr == *"skipping A with unmatched double quote"* ]]
+}
+
 @test "prints export lines with safely quoted values" {
 	printf 'FOO=hello world\n' >"$TESTDIR/item"
 	run run_script --name test-item

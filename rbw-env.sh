@@ -74,23 +74,51 @@ if ! content="$(rbw get "${folder_args[@]}" "$name" 2>/dev/null)"; then
 	exit 0
 fi
 
+trim() {
+	local value="$1"
+	value="${value#"${value%%[![:space:]]*}"}"
+	value="${value%"${value##*[![:space:]]}"}"
+	printf '%s' "$value"
+}
+
 while IFS= read -r line || [ -n "$line" ]; do
-	line="${line%$'\r'}"
+	line="$(trim "${line%$'\r'}")"
 	case "$line" in
-	export\ *) line="${line#export }" ;;
+	'' | \#*) continue ;;
 	esac
-	if [ -z "$line" ]; then
-		continue
-	fi
+	case "$line" in
+	export\ *) line="$(trim "${line#export }")" ;;
+	esac
 	case "$line" in
 	*=*)
-		key="${line%%=*}"
-		value="${line#*=}"
-		if [[ $key =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
-			printf 'export %s=%q\n' "$key" "$value"
-		else
+		key="$(trim "${line%%=*}")"
+		value="$(trim "${line#*=}")"
+		if [[ ! $key =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
 			echo "rbw-env: skipping invalid variable name: $key" >&2
+			continue
 		fi
+		case "$value" in
+		\"*)
+			value="${value#\"}"
+			if [[ $value != *\"* ]]; then
+				echo "rbw-env: skipping $key with unmatched double quote" >&2
+				continue
+			fi
+			value="${value%%\"*}"
+			;;
+		\'*)
+			value="${value#\'}"
+			if [[ $value != *\'* ]]; then
+				echo "rbw-env: skipping $key with unmatched single quote" >&2
+				continue
+			fi
+			value="${value%%\'*}"
+			;;
+		*)
+			value="$(trim "${value%%[[:space:]]#*}")"
+			;;
+		esac
+		printf 'export %s=%q\n' "$key" "$value"
 		;;
 	*)
 		echo "rbw-env: skipping line without '=': $line" >&2
