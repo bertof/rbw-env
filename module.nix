@@ -50,7 +50,8 @@
           description = ''
             A development shell with the rbw-env script available and the
             environment variables loaded. Compose it into your own shells via
-            `inputsFrom` and set `shellHook = config.rbwEnv.shellHook;`.
+            `inputsFrom`: `mkShell` concatenates the `shellHook` of its inputs
+            automatically.
           '';
         };
       };

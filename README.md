@@ -131,8 +131,8 @@ The module provides two read-only values, mirroring the
 - `config.rbwEnv.shellHook`: just the snippet, for composing into your own
   shells.
 
-Note that `inputsFrom` propagates packages but **not** `shellHook`, so a
-composed shell needs one explicit line:
+`mkShell` concatenates the `shellHook` of everything in `inputsFrom` (the
+outer shell's own hook runs last), so composing it requires nothing else:
 
 ```nix
 perSystem = { config, pkgs, ... }: {
@@ -141,9 +141,15 @@ perSystem = { config, pkgs, ... }: {
       config.pre-commit.devShell   # e.g. git-hooks
       config.rbwEnv.devShell
     ];
-    shellHook = config.rbwEnv.shellHook;
   };
 };
+```
+
+If your shell is a plain `stdenv.mkDerivation` (or you want explicit control
+over the hook), add the snippet yourself:
+
+```nix
+shellHook = config.rbwEnv.shellHook;
 ```
 
 Entering the shell with `nix develop` then evaluates the note's variables

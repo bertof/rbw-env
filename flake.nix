@@ -22,10 +22,7 @@
       devShells.default = pkgs.mkShell {
         packages = [ config.rbwEnv.package pkgs.rbw ];
         inputsFrom = [ config.pre-commit.devShell ];
-        shellHook = ''
-          ${config.pre-commit.settings.installationScript}
-          ${config.rbwEnv.shellHook}
-        '';
+        shellHook = config.rbwEnv.shellHook;
       };
 
       pre-commit = {
