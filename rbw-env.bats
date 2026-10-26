@@ -4,7 +4,7 @@ bats_require_minimum_version 1.5.0
 
 setup() {
 	TESTDIR="$BATS_RUN_TMPDIR/rbw-env-$$"
-	mkdir -p "$TESTDIR"
+	mkdir -p "$TESTDIR/bin" "$TESTDIR/runtime"
 	RECORD="$TESTDIR/rbw-args"
 	export TESTDIR RECORD
 
@@ -17,9 +17,28 @@ setup() {
 			echo "Error: item not found" >&2
 			return 1
 		fi
+		if [[ ${MOCK_HANG:-} == 1 ]]; then
+			exec sleep 30
+		fi
 		cat "$TESTDIR/item" 2>/dev/null
 	}
 	export -f rbw
+
+	# Isolate the agent state: tests must not depend on a rbw-agent running
+	# (or not) on the host. A mock agent records its spawn in $SENTINEL and
+	# "starts" by creating the socket.
+	unset RBW_PROFILE
+	SENTINEL="$TESTDIR/agent-spawned"
+	export SENTINEL
+	cat >"$TESTDIR/bin/rbw-agent" <<MOCK
+#!/usr/bin/env bash
+touch "\$SENTINEL"
+mkdir -p "$TESTDIR/runtime/rbw"
+touch "$TESTDIR/runtime/rbw/socket"
+MOCK
+	chmod +x "$TESTDIR/bin/rbw-agent"
+	export PATH="$TESTDIR/bin:$PATH"
+	export XDG_RUNTIME_DIR="$TESTDIR/runtime"
 }
 
 teardown() {
@@ -145,4 +164,32 @@ run_script() {
 	MOCK_FAIL=missing run run_script --name missing-item
 	[ "$status" -eq 0 ]
 	[[ $output == *"could not retrieve item 'missing-item'"* ]]
+}
+
+@test "gives up when rbw hangs and the timeout expires" {
+	MOCK_HANG=1 RBW_ENV_TIMEOUT=1 run run_script --name test-item
+	[ "$status" -eq 0 ]
+	[[ $output == *"timed out after 1s"* ]]
+}
+
+@test "retrieves normally when the timeout is long enough" {
+	printf 'FOO=1\n' >"$TESTDIR/item"
+	RBW_ENV_TIMEOUT=30 run run_script --name test-item
+	[ "$status" -eq 0 ]
+	[ "$output" = 'export FOO=1' ]
+}
+
+@test "spawns rbw-agent when the socket is missing" {
+	run run_script --name test-item
+	[ "$status" -eq 0 ]
+	[ -e "$SENTINEL" ]
+	[ -e "$TESTDIR/runtime/rbw/socket" ]
+}
+
+@test "does not spawn rbw-agent when the socket already exists" {
+	mkdir -p "$TESTDIR/runtime/rbw"
+	touch "$TESTDIR/runtime/rbw/socket"
+	run run_script --name test-item
+	[ "$status" -eq 0 ]
+	[ ! -e "$SENTINEL" ]
 }

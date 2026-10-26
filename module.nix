@@ -28,6 +28,16 @@
           '';
         };
 
+        timeout = lib.mkOption {
+          type = with lib.types; nullOr ints.unsigned;
+          default = null;
+          description = ''
+            Seconds to wait for rbw before giving up (sets `RBW_ENV_TIMEOUT`
+            for the hook). When null, the script default (10) applies; 0
+            disables the timeout entirely.
+          '';
+        };
+
         package = lib.mkOption {
           type = lib.types.package;
           default = pkgs.callPackage ./package.nix { };
@@ -56,15 +66,23 @@
         };
       };
 
-      config = {
-        rbwEnv.shellHook = ''
-          eval "$(${cfg.package}/bin/rbw-env ${lib.escapeShellArgs scriptArgs})"
-        '';
+      config =
+        let
+          timeoutEnv =
+            if cfg.timeout == null then
+              ""
+            else
+              "RBW_ENV_TIMEOUT=${toString cfg.timeout} ";
+        in
+        {
+          rbwEnv.shellHook = ''
+            eval "$(${timeoutEnv}${cfg.package}/bin/rbw-env ${lib.escapeShellArgs scriptArgs})"
+          '';
 
-        rbwEnv.devShell = pkgs.mkShell {
-          packages = [ cfg.package ];
-          inherit (cfg) shellHook;
+          rbwEnv.devShell = pkgs.mkShell {
+            packages = [ cfg.package ];
+            inherit (cfg) shellHook;
+          };
         };
-      };
     };
 }

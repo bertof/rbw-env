@@ -31,6 +31,16 @@ The `rbw-env` script:
 1. Runs `rbw get [--folder <folder>] <name>` and prints one
    `export KEY=value` line per entry of the note.
 
+Before fetching, the script starts `rbw-agent` in the background if it is
+not already running (rbw does not start it on demand): it spawns the agent
+detached and proceeds as soon as the agent socket appears.
+
+The retrieval is guarded by a watchdog: if `rbw` does not answer within
+`RBW_ENV_TIMEOUT` seconds (default: 10, `0` disables the watchdog), the
+client is killed, a warning is printed on stderr and the script exits
+successfully with no output. A missing vault, a missing agent or a stuck
+one must never block your shell or `nix develop`.
+
 The note content is a list of `KEY=value` lines. An optional leading `export`
 on each line is tolerated, whitespace around keys and values is trimmed, empty
 lines and lines starting with `#` are ignored, and lines without a valid shell
@@ -42,9 +52,9 @@ stripped (`KEY=value # comment`); quoted values keep `#` characters
 (`KEY="value # hash"`). Values are printed with `printf %q`, so spaces, quotes
 and `$` are safe.
 
-The script is deliberately forgiving: if `rbw` is unavailable, the item is not
-found, or rbw is locked, it prints a warning on stderr and exits successfully
-with no output. A missing vault must never block your shell or `nix develop`.
+The script is deliberately forgiving: if `rbw` is unavailable, the item is
+not found, or rbw is locked, it prints a warning on stderr and exits
+successfully with no output.
 
 ## Usage in any shell
 
@@ -64,6 +74,14 @@ Typical places:
 The output is compatible with bash and zsh. Plain values also work in any
 POSIX shell, but values containing control characters are quoted in bash
 `$'...'` style, which strict POSIX shells (e.g. dash) do not understand.
+
+The script itself is POSIX-compliant and runs under recent bash and zsh
+alike. The watchdog interval can be tuned with `RBW_ENV_TIMEOUT` (seconds;
+`0` disables it):
+
+```sh
+export RBW_ENV_TIMEOUT=30  # give rbw 30s instead of the default 10
+```
 
 If you use Nix, you can run the script without installing it:
 
@@ -118,6 +136,8 @@ perSystem = { config, pkgs, ... }: {
     # itemName = "my-project-env";
     # Restrict the lookup to a Bitwarden folder:
     # folder = "Development";
+    # Seconds to wait for rbw before giving up (script default: 10):
+    # timeout = 30;
     # Use a custom script (default: the one shipped by this flake):
     # package = pkgs.callPackage ./my-rbw-env.nix { };
   };
